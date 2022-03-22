@@ -3,18 +3,18 @@ import random
 import re
 
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters
 import common
 import logging
 
 global bot
 
-bot_token, bot_username = common.build_tuple('tk.pv')
+bot_token, bot_username = common.build_tuple('token.pv')
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-commands = common.build_tuple_of_tuples('hp.pv')
+commands = common.build_tuple_of_tuples('help.pv')
 
 
 def command_help(update: Update, context: CallbackContext):
@@ -24,7 +24,7 @@ def command_help(update: Update, context: CallbackContext):
     for help_item in commands:
         command, desc = help_item
         command_help_str += '/%s\t%s\n' % (command, desc)
-    confirmation = common.build_tuple('cf.pv')
+    confirmation = common.build_tuple('confirmation.pv')
 
     # Weights of confirmation messages
     weights = []
@@ -56,13 +56,33 @@ def remove_job_if_exists(chat_id: str, context: CallbackContext) -> bool:
     return True
 
 
-# TODO: Listen to specified keywords instead of commands.
-def msg_listener(update: Update, context: CallbackContext) -> None:
+def order(update: Update, context: CallbackContext) -> None:
     try:
         # msg = int(context.args[0])
         msg = update.message.text
+        if re.search("^자위.*(하고.*싶|해도.+\?([ㅜㅠ]){0,3}$)", msg) or\
+                re.search("^(클리|보지).*\s((만지|비비|쑤시)|(만져|비벼|쑤셔|).*\?([ㅜㅠ]){0,3}$)", msg):
+            random_direction = random.choice(common.build_tuple_of_tuples('01-0.pv'))
+            for line in random_direction:
+                context.bot.send_message(chat_id=update.message.chat_id, text=line)
+
+            common_directions = common.build_tuple('01-1.pv')
+            for line in common_directions:
+                context.bot.send_message(chat_id=update.message.chat_id, text=line)
+        if re.search("^(몇.?분|얼마).*\?([ㅜㅠ]){0,3}$", msg):
+            word_0 = random.choice(common.build_tuple('02-0.pv'))
+            word_1 = random.choice(common.build_tuple('02-1.pv'))
+            word_2 = random.choice(common.build_tuple('02-2.pv'))
+            direction_str = word_0 + ' ' + word_1 + ' ' + word_2
+
+            context.bot.send_message(chat_id=update.message.chat_id, text=direction_str)
+            if direction_str[0].isdigit():
+                minutes = int(re.search(r'\d+', direction_str).group())
+                set_timer(update, context, minutes)
+                print('Timer set for %d' % minutes)
     except (IndexError, ValueError):
-        update.message.reply_text('Usage: /set <seconds>')
+        name = common.read_from_file('name.pv')
+        update.message.reply_text('메시지를 처리할 수 없습니다. %s에게 보고하고 문제가 해결될 때까지 기다리세요.' % name)
 
 
 def set_timer(update: Update, context: CallbackContext, minutes: int) -> None:
@@ -92,22 +112,24 @@ def error(update: Updater, context: CallbackContext):
 
 
 def order_1(update: Update, context: CallbackContext):
-    directions = random.choice(common.build_tuple_of_tuples('01-0.pv'))
-    for direction in directions:
-        update.message.reply_text(direction)
+    random_direction = random.choice(common.build_tuple_of_tuples('01-0.pv'))
+    for line in random_direction:
+        context.bot.send_message(chat_id=update.message.chat_id, text=line)
+
     common_directions = common.build_tuple('01-1.pv')
-    for common_direction in common_directions:
-        update.message.reply_text(common_direction)
+    for line in common_directions:
+        context.bot.send_message(chat_id=update.message.chat_id, text=line)
 
 
 def order_2(update: Update, context: CallbackContext):
     word_0 = random.choice(common.build_tuple('02-0.pv'))
     word_1 = random.choice(common.build_tuple('02-1.pv'))
     word_2 = random.choice(common.build_tuple('02-2.pv'))
-    order_str = word_0 + word_1 + word_2
-    update.message.reply_text(order_str)
-    if order_str[0].isdigit():
-        minutes = int(re.search(r'\d+', order_str).group())
+    direction_str = word_0 + ' ' + word_1 + ' ' + word_2
+
+    context.bot.send_message(chat_id=update.message.chat_id, text=direction_str)
+    if direction_str[0].isdigit():
+        minutes = int(re.search(r'\d+', direction_str).group())
         set_timer(update, context, minutes)
         print('Timer set for %d' % minutes)
 
@@ -123,9 +145,13 @@ def main():
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
     dp.add_error_handler(error)
+
+    # Note: Disable privacy mode by /setprivacy to recognize "normal" messages.
+    # (https://stackoverflow.com/a/67163946/17198283)
+    dp.add_handler(MessageHandler(Filters.text & (~ Filters.command), order))
     dp.add_handler(CommandHandler('help', command_help))
 
-    # Add handlers for alarms
+    # Add handlers to cancel alarms
     dp.add_handler(CommandHandler('cancel', cancel_timer))
     # Add message handlers
     for number, help_item in enumerate(commands):
