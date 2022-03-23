@@ -11,7 +11,7 @@ global bot
 
 bot_token, bot_username = common.build_tuple('token.pv')
 
-# Enable logging
+# Enable logging.
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 commands = common.build_tuple_of_tuples('help.pv')
@@ -24,8 +24,12 @@ def command_help(update: Update, context: CallbackContext):
     for help_item in commands:
         command, desc = help_item
         command_help_str += '/%s\t%s\n' % (command, desc)
-    confirmation = common.build_tuple('confirmation.pv')
 
+    # Reply to the command.
+    update.message.reply_text(str.strip(command_help_str))
+
+    # Send a confirmation message occasionally.
+    confirmation = common.build_tuple('confirmation.pv')
     # Weights of confirmation messages
     weights = []
     for i in range(len(confirmation) - 1):
@@ -34,11 +38,14 @@ def command_help(update: Update, context: CallbackContext):
     # Weights 1 for the special message
     weights.append(weight_small)
 
-    # Append the confirmation message
-    command_help_str += '\n' + random.choices(population=confirmation, weights=weights)[0]
-    for i in range(random.randint(0, 2)):
-        command_help_str += 'ㅎ'
-    update.message.reply_text(str.strip(command_help_str))
+    # Append the confirmation message.
+    if random.randint(1, 10) <= 1:
+        confirmation_str = random.choices(population=confirmation, weights=weights)[0]
+        # Add a couple of ㅎ or not.
+        for i in range(random.randint(0, 2)):
+            confirmation_str += 'ㅎ'
+        common.pause_briefly(2, 4)
+        context.bot.send_message(chat_id=update.message.chat_id, text=confirmation_str)
 
 
 def alarm(context: CallbackContext) -> None:
@@ -58,31 +65,39 @@ def remove_job_if_exists(chat_id: str, context: CallbackContext) -> bool:
 
 def order(update: Update, context: CallbackContext) -> None:
     try:
-        # msg = int(context.args[0])
         msg = update.message.text
         if re.search("^자위.*(하고.*싶|해도.+\?([ㅜㅠ]){0,3}$)", msg) or\
                 re.search("^(클리|보지).*\s((만지|비비|쑤시)|(만져|비벼|쑤셔|).*\?([ㅜㅠ]){0,3}$)", msg):
-            random_direction = random.choice(common.build_tuple_of_tuples('01-0.pv'))
-            for line in random_direction:
-                context.bot.send_message(chat_id=update.message.chat_id, text=line)
-
-            common_directions = common.build_tuple('01-1.pv')
-            for line in common_directions:
-                context.bot.send_message(chat_id=update.message.chat_id, text=line)
+            give_rubbing_posture(update, context)
         if re.search("^(몇.?분|얼마).*\?([ㅜㅠ]){0,3}$", msg):
-            word_0 = random.choice(common.build_tuple('02-0.pv'))
-            word_1 = random.choice(common.build_tuple('02-1.pv'))
-            word_2 = random.choice(common.build_tuple('02-2.pv'))
-            direction_str = word_0 + ' ' + word_1 + ' ' + word_2
-
-            context.bot.send_message(chat_id=update.message.chat_id, text=direction_str)
-            if direction_str[0].isdigit():
-                minutes = int(re.search(r'\d+', direction_str).group())
-                set_timer(update, context, minutes)
-                print('Timer set for %d' % minutes)
+            give_rubbing_duration(update, context)
     except (IndexError, ValueError):
         name = common.read_from_file('name.pv')
         update.message.reply_text('메시지를 처리할 수 없습니다. %s에게 보고하고 문제가 해결될 때까지 기다리세요.' % name)
+
+
+def give_rubbing_posture(update: Update, context: CallbackContext):
+    random_direction = random.choice(common.build_tuple_of_tuples('01-0.pv'))
+    for line in random_direction:
+        common.pause_briefly(max_pause=1.2)
+        context.bot.send_message(chat_id=update.message.chat_id, text=line)
+    common.pause_briefly(1.6, 2.4)
+    common_directions = common.build_tuple('01-1.pv')
+    for line in common_directions:
+        context.bot.send_message(chat_id=update.message.chat_id, text=line)
+
+
+def give_rubbing_duration(update: Update, context: CallbackContext):
+    word_0 = random.choice(common.build_tuple('02-0.pv'))
+    word_1 = random.choice(common.build_tuple('02-1.pv'))
+    word_2 = random.choice(common.build_tuple('02-2.pv'))
+    direction_str = word_0 + ' ' + word_1 + ' ' + word_2
+
+    context.bot.send_message(chat_id=update.message.chat_id, text=direction_str)
+    if direction_str[0].isdigit():
+        minutes = int(re.search(r'\d+', direction_str).group())
+        set_timer(update, context, minutes)
+        print('Timer set for %d' % minutes)
 
 
 def set_timer(update: Update, context: CallbackContext, minutes: int) -> None:
@@ -95,7 +110,7 @@ def set_timer(update: Update, context: CallbackContext, minutes: int) -> None:
 
     update.message.reply_text(common.format_quiet_chat('%d분 타이머가 설정되었습니다.') % minutes)
     if job_removed:
-        update.message.reply_text(common.format_quiet_chat('기존에 설정된 타이머는 취소합니다.') % minutes)
+        update.message.reply_text(common.format_quiet_chat('기존에 설정된 타이머는 취소합니다.'))
 
 
 def cancel_timer(update: Update, context: CallbackContext) -> None:
@@ -112,26 +127,11 @@ def error(update: Updater, context: CallbackContext):
 
 
 def order_1(update: Update, context: CallbackContext):
-    random_direction = random.choice(common.build_tuple_of_tuples('01-0.pv'))
-    for line in random_direction:
-        context.bot.send_message(chat_id=update.message.chat_id, text=line)
-
-    common_directions = common.build_tuple('01-1.pv')
-    for line in common_directions:
-        context.bot.send_message(chat_id=update.message.chat_id, text=line)
+    give_rubbing_posture(update, context)
 
 
 def order_2(update: Update, context: CallbackContext):
-    word_0 = random.choice(common.build_tuple('02-0.pv'))
-    word_1 = random.choice(common.build_tuple('02-1.pv'))
-    word_2 = random.choice(common.build_tuple('02-2.pv'))
-    direction_str = word_0 + ' ' + word_1 + ' ' + word_2
-
-    context.bot.send_message(chat_id=update.message.chat_id, text=direction_str)
-    if direction_str[0].isdigit():
-        minutes = int(re.search(r'\d+', direction_str).group())
-        set_timer(update, context, minutes)
-        print('Timer set for %d' % minutes)
+    give_rubbing_duration(update, context)
 
 
 # TODO: Play recorded audios.

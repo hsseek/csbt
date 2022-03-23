@@ -1,3 +1,5 @@
+import random
+import time
 from datetime import datetime
 import os
 
@@ -15,6 +17,10 @@ def log(message: str, path: str, has_tst: bool = True):
 
 def get_str_time() -> str:
     return str(datetime.now()).split('.')[0]
+
+
+def pause_briefly(min_pause: float = 0.4, max_pause: float = 2.4):
+    time.sleep(random.uniform(min_pause, max_pause))
 
 
 def format_quiet_chat(content: str) -> str:
