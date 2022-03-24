@@ -7,6 +7,10 @@ def pause_briefly(min_pause: float = 0.4, max_pause: float = 2.4):
     time.sleep(random.uniform(min_pause, max_pause))
 
 
+def get_random_bool(threshold: float = 0.5) -> bool:
+    return True if random.uniform(0, 1) <= threshold else False
+
+
 def check_dir_exists(dir_path: str):
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
