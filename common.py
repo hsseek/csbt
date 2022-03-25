@@ -3,8 +3,8 @@ import time
 import os
 
 
-def pause_briefly(min_pause: float = 0.4, max_pause: float = 2.4):
-    time.sleep(random.uniform(min_pause, max_pause))
+def sleep_random_duration(min_sec: float = 0.4, max_sec: float = 2.4):
+    time.sleep(random.uniform(min_sec, max_sec))
 
 
 def get_random_bool(threshold: float = 0.5) -> bool:

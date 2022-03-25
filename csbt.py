@@ -1,4 +1,6 @@
 # https://core.telegram.org/bots/api
+import schedule
+from threading import Thread
 import random
 import re
 import telegram
@@ -12,10 +14,17 @@ class Constants:
     BOT_TOKEN, BOT_USERNAME = common.build_tuple('token.pv')
 
 
-is_waiting_answer_yes = False
-is_waiting_answer_start = False
-minutes = 2
+# When a direction was sent, is_waiting_* = True.
+# When an answer was received, is_waiting_* = False.
+is_waiting_answer_yes: bool = False
+is_waiting_answer_start: bool = False
 
+# Whether to allow rubbing or not: refreshed daily.
+is_allowed: bool = True
+denial_count: int = 0
+
+# Duration of rubbing
+minutes: int = 2
 
 # Enable logging.
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -33,12 +42,27 @@ def command_help(update: Update, context: CallbackContext):
     update.message.reply_text(str.strip(command_help_str))
 
     # Send a confirmation message occasionally.
-    confirmation = random.choice(common.build_tuple('confirmation.pv'))
+    confirmation = random.choice(common.build_tuple('help_additional.pv'))
 
     # Append the confirmation message.
     if common.get_random_bool(0.1):
-        common.pause_briefly(2, 4)
+        common.sleep_random_duration(2, 4)
         context.bot.send_message(chat_id=update.message.chat_id, text=add_k(confirmation))
+
+
+def schedule_checker():
+    while True:
+        # Check pending jobs.
+        schedule.run_pending()
+        common.sleep_random_duration(3000, 4200)
+
+
+def renew_allowing_rubbing():
+    global is_allowed
+    global denial_count
+    is_allowed = common.get_random_bool(0.87)
+    print('is_allowed: {}'.format(str(is_allowed)))
+    denial_count = 0
 
 
 def add_k(msg: str) -> str:
@@ -70,28 +94,33 @@ def message_listener(update: Update, context: CallbackContext) -> None:
 
     try:
         msg = update.message.text
-        if re.search("^자위.*(하고.*싶|해도.+[?ㅜㅠ]$)", msg) or\
-                re.search("^(클리|보지).*\s((만지|비비|쑤시)|(만져|비벼|쑤셔|).*[?ㅜㅠ]$)", msg):
+        if ((re.search("자위.*(하고.*싶.+|해도.+)[?ㅜㅠ]$", msg) or
+             re.search("^(클리|보지).*\s((만지|비비|쑤시)|(만져|비벼|쑤셔|).*요[?ㅜㅠ]$)", msg)) and
+                not re.search("(몇\s?분|얼마)", msg)):
             give_rubbing_posture(update, context)
-        if re.search("^(몇.?분|얼마).*[?ㅜㅠ]$", msg):
+        elif re.search("(몇\s?분|얼마).*요[?ㅜㅠ]$", msg) and re.search("(자위|클리|보지)", msg):
             give_rubbing_duration(update, context)
 
-        # Listen to the answers.
-        if is_waiting_answer_yes and re.search("^([네예])", msg):
-            print('(대답?: {} / "시작"?: {}) "{}"'.format(str(not is_waiting_answer_yes), str(not is_waiting_answer_start), msg))
-            is_waiting_answer_yes = False
-            if not is_waiting_answer_start:
-                respond_to_answer(update, context)
-        if is_waiting_answer_start and re.search("시작", msg):
-            print('(대답?: {} / "시작"?: {}) "{}"'.format(str(not is_waiting_answer_yes), str(not is_waiting_answer_start), msg))
-            is_waiting_answer_start = False
-            if not is_waiting_answer_yes:
-                respond_to_answer(update, context)
-
-        # To set an arbitrary timer
-        if re.search("\d.*분.*동안.*(보지|클리)", msg):
+            is_waiting_answer_yes = True
+            is_waiting_answer_start = True
+        elif re.search("\d.?분.{0,6}(보지|클리|자위).*[도면].*요[?ㅜㅠ]$", msg):
+            # To set an arbitrary timer
             minutes = int(re.search(r'\d+', msg).group())
             set_timer(update, context)
+        else:
+            # Listen to the answers.
+            if is_waiting_answer_yes and re.search("^([네예])", msg):
+                print('(대답?: {} / "시작"?: {}) "{}"'
+                      .format(str(not is_waiting_answer_yes), str(not is_waiting_answer_start), msg))
+                is_waiting_answer_yes = False
+                if not is_waiting_answer_start:
+                    respond_to_answer(update, context)
+            if is_waiting_answer_start and re.search("시작", msg):
+                print('(대답?: {} / "시작"?: {}) "{}"'
+                      .format(str(not is_waiting_answer_yes), str(not is_waiting_answer_start), msg))
+                is_waiting_answer_start = False
+                if not is_waiting_answer_yes:
+                    respond_to_answer(update, context)
 
     except (IndexError, ValueError):
         name = common.read_from_file('name.pv')
@@ -105,15 +134,15 @@ def respond_to_answer(update: Update, context: CallbackContext):
 
     # Give a compliment occasionally.
     if common.get_random_bool(0.1):
-        common.pause_briefly(2.4, 4.8)
+        common.sleep_random_duration(2.4, 4.8)
         is_k_added = True
         compliment_phrase = random.choice(common.build_tuple_of_tuples('compliment.pv'))
         for line in compliment_phrase:
-            common.pause_briefly(1.2, 2.4)
+            common.sleep_random_duration(1.2, 2.4)
             context.bot.send_message(chat_id=chat_id, text=add_k(line))
 
     # Give the start direction.
-    oo = 'ㅇㅇ'
+    oo = 'ㅇㅇ '
     word = '시작'
     postfix = '해'
     q_line = ''
@@ -124,35 +153,58 @@ def respond_to_answer(update: Update, context: CallbackContext):
         q_line += postfix
     if is_k_added:
         q_line = add_k(q_line)
-    common.pause_briefly(0.4, 1.2)
+    common.sleep_random_duration(0.4, 1.2)
     context.bot.send_message(chat_id=chat_id, text=q_line)
 
     set_timer(update, context)
-    print('Timer set for {}\''.format(minutes))
 
 
 def give_rubbing_posture(update: Update, context: CallbackContext):
     chat_id = update.message.chat_id
-    is_naked = False
-    if common.get_random_bool(0.3):
-        common.pause_briefly(max_pause=0.8)
-        nudity_direction = random.choice(common.build_tuple('01-0.pv'))
-        context.bot.send_message(chat_id=chat_id, text=nudity_direction)
-        is_naked = True
+    if is_allowed:
+        is_naked = False
+        if common.get_random_bool(0.3):
+            common.sleep_random_duration(max_sec=0.8)
+            nudity_direction = random.choice(common.build_tuple('01-0.pv'))
+            context.bot.send_message(chat_id=chat_id, text=nudity_direction)
+            is_naked = True
 
-    random_direction = random.choice(common.build_tuple_of_tuples('01-1.pv'))
+        random_direction = random.choice(common.build_tuple_of_tuples('01-1.pv'))
 
-    # Add a pause before give a direction.
-    common.pause_briefly(2.4, 3.6)
-    for i, line in enumerate(random_direction):
-        if is_naked and i == 0:
-            line = '그리고 다 벗었으면 ' + line
-        common.pause_briefly(max_pause=1.2)
-        context.bot.send_message(chat_id=chat_id, text=line)
-    common.pause_briefly(1.6, 2.4)
+        # Add a pause before give a direction.
+        common.sleep_random_duration(2.4, 3.6)
+        for i, line in enumerate(random_direction):
+            if is_naked and i == 0:
+                line = '그리고 다 벗었으면 ' + line
+            common.sleep_random_duration(max_sec=1.2)
+            context.bot.send_message(chat_id=chat_id, text=line)
+        common.sleep_random_duration(1.6, 2.4)
 
-    # Give common directions.
-    give_common_directions(context, update)
+        # Give common directions.
+        give_common_directions(context, update)
+
+    else:
+        global denial_count
+        last_count = denial_count
+        denial_count += 1
+        print('New denial count: {:d}'.format(denial_count))
+
+        if last_count == 0:
+            common.sleep_random_duration(0.4, 1.2)
+            context.bot.send_message(chat_id=chat_id, text='안돼')
+
+            additional_direction = random.choice(common.build_tuple_of_tuples('dont_0.pv'))
+            for line in additional_direction:
+                common.sleep_random_duration(0.8, 1.6)
+                context.bot.send_message(chat_id=chat_id, text=line)
+        elif last_count == 1:
+            additional_direction = random.choice(common.build_tuple_of_tuples('dont_1.pv'))
+            for line in additional_direction:
+                common.sleep_random_duration(0.8, 1.6)
+                context.bot.send_message(chat_id=chat_id, text=line)
+        else:
+            send_bot_message(update, context, '데이터 수신을 차단합니다.', True)
+            shutdown()
 
 
 def demand_answer(context: CallbackContext) -> None:
@@ -166,12 +218,12 @@ def give_common_directions(context, update):
     common_direction_optional = random.choice(common.build_tuple('01-2.pv'))
     # Give an order sometimes.
     if common.get_random_bool(0.3):
-        common.pause_briefly(max_pause=1.2)
+        common.sleep_random_duration(max_sec=1.2)
         context.bot.send_message(chat_id=update.message.chat_id, text=common_direction_optional)
     # Always give the orders.
     common_directions_required = common.build_tuple('01-3.pv')
     for line in common_directions_required:
-        common.pause_briefly(max_pause=1.2)
+        common.sleep_random_duration(max_sec=1.2)
         context.bot.send_message(chat_id=update.message.chat_id, text=line)
 
 
@@ -189,11 +241,6 @@ def give_rubbing_duration(update: Update, context: CallbackContext):
     else:
         minutes = 2
 
-    global is_waiting_answer_yes
-    global is_waiting_answer_start
-
-    is_waiting_answer_yes = True
-    is_waiting_answer_start = True
     remove_job_if_exists(str(chat_id), context)
     context.job_queue.run_once(demand_answer, 16, context=chat_id, name=str(chat_id))
     print('Waiting answering for 16"')
@@ -206,10 +253,12 @@ def set_timer(update: Update, context: CallbackContext) -> None:
 
     seconds = minutes * 60
     context.job_queue.run_once(halt, seconds, context=chat_id, name=str(chat_id))
+    print('Timer set for {}\''.format(minutes))
+
     # TODO: '~분 남았습니다.' 알림
     # https://stackoverflow.com/questions/52556939, https://stackoverflow.com/questions/47167193
 
-    common.pause_briefly(0.8, 1.2)
+    common.sleep_random_duration(0.8, 1.2)
     send_bot_message(update, context, '{:d}분 타이머가 설정되었습니다.'.format(minutes), True)
     if job_removed:
         send_bot_message(update, context, '기존 설정 타이머는 취소합니다.', True)
@@ -219,7 +268,8 @@ def send_bot_message(update: Update, context: CallbackContext, msg: str, is_repl
     if is_reply:
         update.message.reply_text(text='`({})`'.format(msg), parse_mode=telegram.ParseMode.MARKDOWN_V2)
     else:
-        context.bot.send_message(chat_id=update.message.chat_id, text=msg)
+        context.bot.send_message(chat_id=update.message.chat_id,
+                                 text='`({})`'.format(msg), parse_mode=telegram.ParseMode.MARKDOWN_V2)
 
 
 def cancel_timer(update: Update, context: CallbackContext) -> None:
@@ -243,8 +293,19 @@ def order_2(update: Update, context: CallbackContext):
     give_rubbing_duration(update, context)
 
 
+def shutdown():
+    print('Called shutdown command.')
+    common.sleep_random_duration(3600 * 8, 3600 * 9)
+
+
 # TODO: Play recorded audios.
 def main():
+    # Create the job in schedule.(https://stackoverflow.com/a/60867438/17198283)
+    schedule.every().day.at("09:00").do(renew_allowing_rubbing)
+    renew_allowing_thread = Thread(target=schedule_checker)
+    renew_allowing_thread.daemon = True  # https://stackoverflow.com/a/11816038/17198283
+    renew_allowing_thread.start()
+
     # Get the dispatcher to register handlers
     updater = Updater(Constants.BOT_TOKEN, use_context=True)
     dp = updater.dispatcher
@@ -265,7 +326,6 @@ def main():
             dp.add_handler(CommandHandler(command, order_1))
         if number == 1:
             dp.add_handler(CommandHandler(command, order_2))
-
     # TODO: Add a handler for unexpected commands
 
     # Start the Bot
