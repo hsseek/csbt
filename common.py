@@ -3,7 +3,7 @@ import time
 import os
 
 
-def sleep_random_duration(min_sec: float = 0.4, max_sec: float = 2.4):
+def sleep_random_seconds(min_sec: float = 0.8, max_sec: float = 1.2):
     time.sleep(random.uniform(min_sec, max_sec))
 
 
