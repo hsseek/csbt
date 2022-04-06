@@ -250,8 +250,8 @@ def inform_cycle_status(context: CallbackContext):
         else:
             text = line
         text += ' 녹음해서 올려놓고'
-        context.bot.send_message(chat_id=chat_id, text=line)
         common.sleep_random_seconds()
+        context.bot.send_message(chat_id=chat_id, text=line)
         send_random_lines(chat_id, context, 'conditioning-simple.pv')
     else:
         send_random_lines(chat_id, context, 'conditioning-detailed.pv')
@@ -429,9 +429,7 @@ def give_2(update: Update, context: CallbackContext):
             global rubbing_min, pause_min, repeat, cycle_number
             cycle_number = 0
 
-            common.sleep_random_seconds(0.8, 1.2)  # Just after time's up. A longer delay is confusing.
-            send_random_lines(chat_id, context, '02-0-0.pv', msg_before=opening_str)
-
+            context.bot.send_message(chat_id=chat_id, text=opening_str + common.read_from_file('02-0-0.pv'))
             # TODO: Give directions to maintain a temperature.
             # Retrieve the intervals.
             if is_using_satisfier:
@@ -453,21 +451,21 @@ def give_2(update: Update, context: CallbackContext):
                 if repeat > len(sati_levels):
                     repeat = len(sati_levels)
 
+                common.sleep_random_seconds()
                 duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 할거고'.format(rubbing_min, pause_min, repeat)
                 context.bot.send_message(chat_id=chat_id, text=duration_str)
-                common.sleep_random_seconds()
 
+                common.sleep_random_seconds()
                 level_str = '새티는 {:d}단계로 맞춰놔'.format(starting_sati_level)
                 context.bot.send_message(chat_id=chat_id, text=level_str)
-                common.sleep_random_seconds()
 
-                context.bot.send_message(chat_id=chat_id, text='한 세트 끝날 때마다 1단계씩 올려서 클리 털고')
                 common.sleep_random_seconds()
+                context.bot.send_message(chat_id=chat_id, text='한 세트 끝날 때마다 1단계씩 올려서 클리 털고')
             else:
                 duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 하고'.format(rubbing_min, pause_min, repeat)
                 context.bot.send_message(chat_id=chat_id, text=duration_str)
-                common.sleep_random_seconds()
 
+            common.sleep_random_seconds()
             send_random_lines(chat_id, context, '02-0-2.pv')
             common.sleep_random_seconds()
 
@@ -576,11 +574,7 @@ def order_1(update: Update, context: CallbackContext):
 
 
 def order_2(update: Update, context: CallbackContext):
-    chat_id = update.effective_message.chat_id
-    text = '기능이 활성화되지 않았습니다.'
-    send_informative_message(chat_id, context, text)
-    pass  # test
-    # give_2(update, context)
+    give_2(update, context)
 
 
 def stop_receiving_sf(context: CallbackContext):
