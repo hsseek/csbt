@@ -36,11 +36,14 @@ denial_count: int = 0
 is_direction_given: bool = False
 is_to_suppress: bool = True
 is_sup_inter_recording: bool = False
+is_using_satisfier: bool = False
+# TODO: Let user set whether to use a satisfier.
+# TODO: Let user block offensive words. 빨통(-> 가슴), 좆집, 걸레, etc.
 
 # Activity sf handlers
 is_s_listening: bool = False
 is_f_listening: bool = False
-is_duration_successful: bool = False
+is_rewarding: bool = False
 
 # Activity of a session
 is_active: bool = True
@@ -139,7 +142,8 @@ def interpret_message(update: Update, context: CallbackContext) -> None:
     try:
         if re.search("(몇\s?분|얼마).*요.?[?ㅜㅠ]$", message_content) and re.search("(보지|클리|자위)", message_content):
             # A message about duration. Equivalent to /2.
-            give_2(update, context)
+            # give_2(update, context)
+            pass  # TODO: Uncomment after sufficient data have been collected.
         elif re.search("\d.?분.{0,6}(보지|클리|자위).*[할도면털].*요.?[?ㅜㅠ]$", message_content):
             # A message about simple directions
             duration_min = int(re.search(r'\d+', message_content).group())
@@ -240,15 +244,17 @@ def inform_cycle_status(context: CallbackContext):
 
     if is_sup_inter_recording:
         common.sleep_random_seconds()
-        phrase = random.choice(common.build_tuple_of_tuples('02-0-3.pv'))
-        for line in phrase:
-            if '세트' in line:
-                context.bot.send_message(chat_id=chat_id, text=line.format(cycle_number))
-            else:
-                context.bot.send_message(chat_id=chat_id, text=line)
-            common.sleep_random_seconds()
+        line = random.choice(common.read_from_file('02-0-3.pv'))
+        if '세트' in line:
+            text = line.format(cycle_number)
+        else:
+            text = line
+        text += ' 녹음해서 올려놓고'
+        context.bot.send_message(chat_id=chat_id, text=line)
+        common.sleep_random_seconds()
+        send_random_lines(chat_id, context, 'conditioning-simple.pv')
     else:
-        send_random_lines(chat_id, context, 'conditioning.pv')
+        send_random_lines(chat_id, context, 'conditioning-detailed.pv')
 
 
 def declare_start(context: CallbackContext):
@@ -290,10 +296,11 @@ def ask_sf(context: CallbackContext):
     context.bot.send_message(context.job.context, text=sup_commands_str)
 
 
-def give_1(update: Update, context: CallbackContext, nested: bool = False):
+def give_1(update: Update, context: CallbackContext, is_to_give_duration: bool = False):
     global is_direction_given
     global is_active, reactivated_time
-    global is_to_suppress, is_duration_successful
+    global is_to_suppress, is_rewarding
+    global is_using_satisfier
     message = update.effective_message
     chat_id = message.chat_id
 
@@ -304,13 +311,16 @@ def give_1(update: Update, context: CallbackContext, nested: bool = False):
             send_inactive_msg(update, context)
         else:
             lock_giving_direction()  # Prevent generating another direction.
-            if is_duration_successful:
+            if is_rewarding:
                 # if successful, the naked status has been already given.
                 is_naked = False
+                is_using_satisfier = False
             else:
                 is_naked = common.get_random_bool(0.33)
 
-            if not is_duration_successful:  # if successful, the user has already been merged into the process.
+            if is_rewarding:  # if successful, the user has already been merged into the process.
+                pass
+            else:
                 pause_sec = random.uniform(8, 13)
                 send_informative_message(chat_id, context, '명령어 생성을 시작합니다.\n(예상 소요시간: {:.2f}초)'.format(pause_sec),
                                          replied_message=message, is_parenthesis=False)
@@ -332,8 +342,9 @@ def give_1(update: Update, context: CallbackContext, nested: bool = False):
             else:
                 send_random_lines(chat_id, context, filename='01-1.pv')
 
-            if nested:  # The duration is going to be given. Therefore, don't give start permission at this stage.
-                # Set time to prepare.
+            # The duration is going to be given. Therefore, don't give start permission at this stage.
+            if is_to_give_duration:
+                # Randomize time to prepare.
                 if is_naked:
                     additional_sec = 10 * random.randint(2, 5)
                 else:
@@ -345,6 +356,7 @@ def give_1(update: Update, context: CallbackContext, nested: bool = False):
                     sec_str = ' {}초'.format(additional_sec)
                 else:
                     sec_str = ''
+                # Whether to be naked or not.
                 if is_naked:
                     text = '1분{} 줄 테니까 옷 다 벗어'.format(sec_str)
                 else:
@@ -353,11 +365,16 @@ def give_1(update: Update, context: CallbackContext, nested: bool = False):
                 # Send the message.
                 common.sleep_random_seconds(1.6, 2.4)
                 context.bot.send_message(chat_id=chat_id, text=text)
+                common.sleep_random_seconds()
                 # TODO: Timer messages should reply to the messages that define the timer.
 
-                common.sleep_random_seconds()
+                # Order the user to prepare the machine sometimes.
+                if is_using_satisfier:
+                    context.bot.send_message(chat_id=chat_id, text='그리고 새티 쓸 거니까 새티도 옆에 갖다놔')
+                    common.sleep_random_seconds()
+
                 set_timer(message, context, pause_sec)
-                send_random_lines(chat_id, context, 'conditioning.pv', msg_before='준비 끝났으면 ')
+                send_random_lines(chat_id, context, 'conditioning-detailed.pv', msg_before='준비 끝났으면 ')
                 common.sleep_random_seconds()
                 time.sleep(pause_sec)
             else:  # The duration is not going to be given. Start the session once ready.
@@ -365,7 +382,7 @@ def give_1(update: Update, context: CallbackContext, nested: bool = False):
                 if common.get_random_bool(0.7):
                     send_random_lines(chat_id, context, '01-2.pv')
 
-                if is_duration_successful:  # If called from ask_sf, the following direction has already been given.
+                if is_rewarding:  # If called from ask_sf, the following direction has already been given.
                     pass
                 else:  # Give the post process direction at this stage, if the give_1 was called.
                     send_random_lines(chat_id, context, '01-3.pv')
@@ -396,7 +413,7 @@ def give_1(update: Update, context: CallbackContext, nested: bool = False):
 
 def give_2(update: Update, context: CallbackContext):
     global is_direction_given, is_active
-    global is_to_suppress
+    global is_to_suppress, is_using_satisfier
     message = update.effective_message
     chat_id = message.chat_id
 
@@ -416,14 +433,40 @@ def give_2(update: Update, context: CallbackContext):
             send_random_lines(chat_id, context, '02-0-0.pv', msg_before=opening_str)
 
             # TODO: Give directions to maintain a temperature.
-            strings = random.choice(common.build_tuple_of_tuples('02-0-1.pv'))
+            # Retrieve the intervals.
+            if is_using_satisfier:
+                strings = random.choice(common.build_tuple_of_tuples('02-0-1-s.pv'))
+            else:
+                strings = random.choice(common.build_tuple_of_tuples('02-0-1.pv'))
             integers = []
             for value in strings:
                 integers.append(int(value))
             rubbing_min, pause_min, repeat = integers
-            duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 하고'.format(rubbing_min, pause_min, repeat)
-            context.bot.send_message(chat_id=chat_id, text=duration_str)
-            common.sleep_random_seconds()
+
+            if is_using_satisfier:
+                sati_levels = (5, 6, 7, 8)
+                if repeat < len(sati_levels):
+                    starting_sati_level = sati_levels[-repeat]
+                else:
+                    starting_sati_level = sati_levels[0]
+
+                if repeat > len(sati_levels):
+                    repeat = len(sati_levels)
+
+                duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 할거고'.format(rubbing_min, pause_min, repeat)
+                context.bot.send_message(chat_id=chat_id, text=duration_str)
+                common.sleep_random_seconds()
+
+                level_str = '새티는 {:d}단계로 맞춰놔'.format(starting_sati_level)
+                context.bot.send_message(chat_id=chat_id, text=level_str)
+                common.sleep_random_seconds()
+
+                context.bot.send_message(chat_id=chat_id, text='한 세트 끝날 때마다 1단계씩 올려서 클리 털고')
+                common.sleep_random_seconds()
+            else:
+                duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 하고'.format(rubbing_min, pause_min, repeat)
+                context.bot.send_message(chat_id=chat_id, text=duration_str)
+                common.sleep_random_seconds()
 
             send_random_lines(chat_id, context, '02-0-2.pv')
             common.sleep_random_seconds()
@@ -431,9 +474,6 @@ def give_2(update: Update, context: CallbackContext):
             # Configure variables for cycling.
             global is_f_listening
             is_f_listening = True  # Activate handler to receive a failure report.
-
-            # To demand recordings between pauses or not, determining messages in inform_cycle_status
-            global is_sup_inter_recording
 
             unit_interval = (rubbing_min + pause_min) * 60
             for i in range(repeat):
@@ -536,7 +576,11 @@ def order_1(update: Update, context: CallbackContext):
 
 
 def order_2(update: Update, context: CallbackContext):
-    give_2(update, context)
+    chat_id = update.effective_message.chat_id
+    text = '기능이 활성화되지 않았습니다.'
+    send_informative_message(chat_id, context, text)
+    pass  # test
+    # give_2(update, context)
 
 
 def stop_receiving_sf(context: CallbackContext):
@@ -554,10 +598,10 @@ def stop_receiving_sf(context: CallbackContext):
 
 
 def duration_successful(update: Update, context: CallbackContext):
-    global is_s_listening, is_duration_successful
+    global is_s_listening, is_rewarding
     if is_s_listening:
         stop_receiving_sf(context)
-        is_duration_successful = True
+        is_rewarding = True
         # TODO: Play recorded voice FREQUENTLY.
         global is_to_suppress
         chat_id = update.effective_message.chat_id
@@ -603,15 +647,16 @@ def activate_session(context: CallbackContext):
     is_allowed = True
     denial_count = 0
 
-    global is_direction_given, is_to_suppress, is_sup_inter_recording
+    global is_direction_given, is_to_suppress, is_sup_inter_recording, is_using_satisfier
     is_direction_given = False
     is_to_suppress = common.get_random_bool(0.9)  # i.e. 100% in the first session, 90% afterwards.
     is_sup_inter_recording = common.get_random_bool()  # i.e. 0% in the first session, 50% afterwards.
+    is_using_satisfier = common.get_random_bool(0.2)  # i.e. 0% in the first session, 20% afterwards.
 
-    global is_s_listening, is_f_listening, is_duration_successful
+    global is_s_listening, is_f_listening, is_rewarding
     is_s_listening = False
     is_f_listening = False
-    is_duration_successful = False
+    is_rewarding = False
 
     global reactivated_time
     reactivated_time = datetime.datetime.now()
