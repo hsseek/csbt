@@ -69,14 +69,6 @@ def command_help(update: Update, context: CallbackContext):
     # Reply to the command.
     update.effective_message.reply_text(str.strip(command_help_str))
 
-    # Send a confirmation message occasionally.
-    confirmation = random.choice(common.build_tuple('help_additional.pv'))
-
-    # Append the confirmation message.
-    if common.get_random_bool(0.1):
-        common.sleep_random_seconds(2, 4)
-        context.bot.send_message(chat_id=update.effective_message.chat_id, text=confirmation)
-
 
 def schedule_checker():
     while True:
@@ -140,19 +132,19 @@ def interpret_message(update: Update, context: CallbackContext) -> None:
     message_content = message.text
     chat_id = message.chat_id
     try:
-        if re.search("(몇\s?분|얼마).*요.?[?ㅜㅠ]$", message_content) and re.search("(보지|클리|자위)", message_content):
-            # A message about duration. Equivalent to /2.
+        if re.search("(몇\s?분|얼마).*요.?[?ㅜㅠ.]$", message_content) and re.search("(보지|클리|자위)", message_content):
+            # A message about duration. Equivalent to "/2".
             # give_2(update, context)
             pass  # TODO: Uncomment after sufficient data have been collected.
-        elif re.search("\d.?분.{0,6}(보지|클리|자위).*[할도면털].*요.?[?ㅜㅠ]$", message_content):
+        elif re.search("\d.?분.{0,6}(보지|클리|자위).*[할도면털].*요.?[?ㅜㅠ.]", message_content):
             # A message about simple directions
             duration_min = int(re.search(r'\d+', message_content).group())
             common.sleep_random_seconds(2.8, 3.2)
             send_go(context, chat_id)
             common.sleep_random_seconds()
             set_termination_timer(message, context, duration_min)
-        elif ((re.search("자위.*(하고.*싶.+|해도.+)[?ㅜㅠ]$", message_content) or
-               re.search("^(클리|보지).*\s((만지|비비|쑤시|털)|(만져|비벼|쑤셔)).*요.?[?ㅜㅠ]$", message_content)) and
+        elif ((re.search("자위.*(하고.*싶.+|해도.+)[?ㅜㅠ]", message_content) or
+               re.search("^(클리|보지).*\s((만지|비비|쑤시|털)|(만져|비벼|쑤셔)).*요.?[?ㅜㅠ.]", message_content)) and
               not re.search("(몇\s?분|얼마)", message_content)):
             # A message about posture. Equivalent to /1.
             give_1(update, context)
@@ -253,6 +245,15 @@ def inform_cycle_status(context: CallbackContext):
         common.sleep_random_seconds()
         context.bot.send_message(chat_id=chat_id, text=line)
         send_random_lines(chat_id, context, 'conditioning-simple.pv')
+    elif is_using_thermometer():
+        if cycle_number == 1:
+            common.sleep_random_seconds()
+            context.bot.send_message(chat_id=chat_id, text='이제 온도계 보지에 꽂고 눈금 잘 보이게 사진 찍어서 올려놔')
+            send_random_lines(chat_id, context, 'conditioning-simple.pv', msg_before='사진 업로드 끝나면 보지에 온도계 꽂은 채로 ')
+        else:
+            common.sleep_random_seconds()
+            context.bot.send_message(chat_id=chat_id, text='보지에 온도계 꽂은 채로 눈금 잘 보이게 사진 찍어서 올려놔')
+            send_random_lines(chat_id, context, 'conditioning-simple.pv', msg_before='사진 업로드 끝나면 ')
     else:
         send_random_lines(chat_id, context, 'conditioning-detailed.pv')
 
@@ -371,6 +372,9 @@ def give_1(update: Update, context: CallbackContext, is_to_give_duration: bool =
                 # Order the user to prepare the machine sometimes.
                 if is_using_satisfier:
                     context.bot.send_message(chat_id=chat_id, text='그리고 새티 쓸 거니까 새티도 옆에 갖다놔')
+                    common.sleep_random_seconds()
+                elif is_using_thermometer():
+                    context.bot.send_message(chat_id=chat_id, text='그리고 이따 보지 온도 측정할 거니까 온도계도 옆에 갖다놔')
                     common.sleep_random_seconds()
 
                 set_timer(message, context, pause_sec)
@@ -564,6 +568,11 @@ def give_orientation(update: Update, context: CallbackContext) -> None:
                              text=msg, parse_mode=telegram.ParseMode.MARKDOWN_V2)
 
 
+def is_using_thermometer():
+    global is_using_satisfier, is_sup_inter_recording
+    return not (is_using_satisfier or is_sup_inter_recording)
+
+
 def error(update: Updater, context: CallbackContext):
     # Log Errors caused by Updates
     logger.warning('Update {} caused error {}'.format(update, context.error))
@@ -574,7 +583,12 @@ def order_1(update: Update, context: CallbackContext):
 
 
 def order_2(update: Update, context: CallbackContext):
-    give_2(update, context)
+    chat_id = update.effective_message.chat_id
+    text = '기능이 활성화되지 않았습니다.'
+    send_informative_message(chat_id, context, text)
+    pass
+    # TODO: Uncomment after sufficient data have been collected.
+    # give_2(update, context)
 
 
 def stop_receiving_sf(context: CallbackContext):
@@ -709,6 +723,10 @@ def add_command_handlers(dp: Updater.dispatcher):
     sup_command = common.build_tuple_of_tuples('duration_sf.pv')[0][0]
     duration_s_handler = CommandHandler(sup_command, duration_successful)
     dp.add_handler(duration_s_handler)
+
+
+def get_tst() -> str:
+    return datetime.datetime.now().strftime('%m%d_%H%M')
 
 
 def main():
