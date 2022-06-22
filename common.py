@@ -1,3 +1,4 @@
+import datetime
 import random
 import time
 import os
@@ -35,3 +36,7 @@ def build_tuple_of_tuples(path: str):
     for line in lines:
         info.append(tuple(line.split(',')))
     return tuple(info)
+
+
+def get_tst() -> str:
+    return datetime.datetime.now().strftime('%Y-%m-%d %H:%M')

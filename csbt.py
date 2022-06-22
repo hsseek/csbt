@@ -26,6 +26,7 @@ class Constants:
     JOB_INFORM_CYCLE_STATUS = 'inform_cycle_status'
     JOB_DECLARE_START = 'declare_start'
     JOB_ASK_SF = 'ask_sf'
+    JOB_MILD_EXCITEMENT = 'mild_excitement'
 
 
 # Whether to allow rubbing or not: refreshed daily.
@@ -51,7 +52,7 @@ reactivated_time: datetime = datetime.datetime.now()
 
 rubbing_min: int = 0
 pause_min: int = 0
-repeat: int = 0
+rubbing_repeat: int = 0
 cycle_number: int = 0
 
 # Enable logging.
@@ -95,6 +96,18 @@ def has_little_left(context: CallbackContext) -> None:
     send_informative_message(chat_id, context, '{:d}분 남았습니다.'.format(Constants.LITTLE_TIME_MIN))
 
 
+def send_mild_excitement(context: CallbackContext) -> None:
+    chat_id, direction = context.job.context
+    # TODO: 모티브가 된 움짤 같이 송출(매번 동일한 것 보내면 질리기 쉬우니까 확률적으로 변경)
+    send_informative_message(chat_id, context, direction, is_parenthesis=False)
+
+
+def send_mild_excitement_timeout(context: CallbackContext) -> None:
+    chat_id = context.job.context
+    text = '터치 자세 송출이 자동종료 되었습니다. 명령어 도움말을 보려면 /help 를 입력해주세요.'
+    send_informative_message(chat_id, context, text, is_parenthesis=False)
+
+
 def remove_job_if_exists(name: str, context: CallbackContext) -> bool:
     # Remove job with given name. Returns whether job was removed.
     # https://github.com/python-telegram-bot/python-telegram-bot/blob/master/examples/timerbot.py
@@ -131,6 +144,10 @@ def interpret_message(update: Update, context: CallbackContext) -> None:
     message = update.effective_message
     message_content = message.text
     chat_id = message.chat_id
+    text = update.effective_message.text
+    log_msg = "{}\t: {}".format(get_username(update), text)  # snw2g12  : Hello!
+    log(chat_id, log_msg)
+
     try:
         if re.search("(몇\s?분|얼마).*요.?[?ㅜㅠ.]$", message_content) and re.search("(보지|클리|자위)", message_content):
             # A message about duration. Equivalent to "/2".
@@ -150,7 +167,8 @@ def interpret_message(update: Update, context: CallbackContext) -> None:
             give_1(update, context)
     except (IndexError, ValueError):
         contact = common.read_from_file('contact.pv')
-        update.effective_message.reply_text('메시지를 처리할 수 없습니다. {}로 문제를 보고하고 문제가 해결될 때까지 기다리세요.'.format(contact))
+        update.effective_message.reply_text('메시지를 처리할 수 없습니다. {}로 문제를 보고하고 문제가 해결될 때까지 기다리세요.'.format(contact),
+                                            quote=True)
 
 
 def send_random_lines(chat_id, context: CallbackContext, filename: str, msg_before: str = None):
@@ -222,13 +240,13 @@ def send_inactive_msg(update: Update, context: CallbackContext):
 
 
 def inform_cycle_status(context: CallbackContext):
-    global pause_min, repeat, cycle_number
+    global pause_min, rubbing_repeat, cycle_number
     global is_sup_inter_recording
     chat_id = context.job.context
 
     cycle_number += 1
     send_informative_message(chat_id, context, '(설정된 타이머 시간에 도달했습니다.)\n{:d}분 뒤 재개: {:d}세트 중 {:d}세트 완료'
-                             .format(pause_min, repeat, cycle_number), is_parenthesis=False)
+                             .format(pause_min, rubbing_repeat, cycle_number), is_parenthesis=False)
     common.sleep_random_seconds()
 
     stop_line = common.build_tuple('02-1-3.pv')[0]
@@ -278,8 +296,9 @@ def ask_sf(context: CallbackContext):
     chat_id = context.job.context
 
     if is_to_suppress:
-        global repeat
-        send_informative_message(chat_id, context, '(설정된 타이머 시간에 도달했습니다.)\n{:d}세트 중 {:d}세트 완료.'.format(repeat, repeat),
+        global rubbing_repeat
+        send_informative_message(chat_id, context, '(설정된 타이머 시간에 도달했습니다.)\n{:d}세트 중 {:d}세트 완료.'
+                                 .format(rubbing_repeat, rubbing_repeat),
                                  is_parenthesis=False)
         time.sleep(0.8)
     else:
@@ -430,7 +449,7 @@ def give_2(update: Update, context: CallbackContext):
 
         opening_str = random.choice(('오늘은 ', '이번엔 ', ''))
         if is_to_suppress:  # Suppressing
-            global rubbing_min, pause_min, repeat, cycle_number
+            global rubbing_min, pause_min, rubbing_repeat, cycle_number
             cycle_number = 0
 
             context.bot.send_message(chat_id=chat_id, text=opening_str + common.read_from_file('02-0-0.pv'))
@@ -443,20 +462,20 @@ def give_2(update: Update, context: CallbackContext):
             integers = []
             for value in strings:
                 integers.append(int(value))
-            rubbing_min, pause_min, repeat = integers
+            rubbing_min, pause_min, rubbing_repeat = integers
 
             if is_using_satisfier:
                 sati_levels = (5, 6, 7, 8)
-                if repeat < len(sati_levels):
-                    starting_sati_level = sati_levels[-repeat]
+                if rubbing_repeat < len(sati_levels):
+                    starting_sati_level = sati_levels[-rubbing_repeat]
                 else:
                     starting_sati_level = sati_levels[0]
 
-                if repeat > len(sati_levels):
-                    repeat = len(sati_levels)
+                if rubbing_repeat > len(sati_levels):
+                    rubbing_repeat = len(sati_levels)
 
                 common.sleep_random_seconds()
-                duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 할거고'.format(rubbing_min, pause_min, repeat)
+                duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 할거고'.format(rubbing_min, pause_min, rubbing_repeat)
                 context.bot.send_message(chat_id=chat_id, text=duration_str)
 
                 common.sleep_random_seconds()
@@ -466,7 +485,7 @@ def give_2(update: Update, context: CallbackContext):
                 common.sleep_random_seconds()
                 context.bot.send_message(chat_id=chat_id, text='한 세트 끝날 때마다 1단계씩 올려서 클리 털고')
             else:
-                duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 하고'.format(rubbing_min, pause_min, repeat)
+                duration_str = '{:d}분 동안 보지 털고 {:d}분 쉬기 {:d}세트 하고'.format(rubbing_min, pause_min, rubbing_repeat)
                 context.bot.send_message(chat_id=chat_id, text=duration_str)
 
             common.sleep_random_seconds()
@@ -477,17 +496,18 @@ def give_2(update: Update, context: CallbackContext):
             global is_f_listening
             is_f_listening = True  # Activate handler to receive a failure report.
 
+            # Add all the timers.
             unit_interval = (rubbing_min + pause_min) * 60
-            for i in range(repeat):
+            for i in range(rubbing_repeat):
                 firing_time = unit_interval * i
                 context.job_queue.run_once(declare_start, firing_time,
                                            context=message, name=Constants.JOB_DECLARE_START)
-                if i < repeat - 1:  # Other than the last cycle.
+                if i < rubbing_repeat - 1:  # Other than the last cycle.
                     context.job_queue.run_once(inform_cycle_status, rubbing_min * 60 + firing_time,
                                                context=chat_id, name=Constants.JOB_INFORM_CYCLE_STATUS)
                     # context (object, optional) – Additional data needed for the callback function.
                     # https://python-telegram-bot.readthedocs.io/en/stable/telegram.ext.jobqueue.html#telegram.ext.JobQueue.run_monthly
-            overall_duration = unit_interval * repeat - pause_min * 60 + 3
+            overall_duration = unit_interval * rubbing_repeat - pause_min * 60 + 3
             context.job_queue.run_once(ask_sf, overall_duration, context=chat_id, name=Constants.JOB_ASK_SF)
         else:  # Rushing
             send_random_lines(chat_id, context, '02-1-0.pv', msg_before=opening_str)
@@ -509,6 +529,52 @@ def give_2(update: Update, context: CallbackContext):
             give_permission_to_start(message, context, timer_min)
             context.job_queue.run_once(ask_sf, timer_min * 60,
                                        context=chat_id, name=Constants.JOB_ASK_SF)
+
+
+def toggle_sending_mild_excitement(update: Update, context: CallbackContext):
+    message = update.effective_message
+    chat_id = message.chat_id
+
+    current_jobs = context.job_queue.get_jobs_by_name(Constants.JOB_MILD_EXCITEMENT)
+    if current_jobs:
+        # TODO: Store commands to Constants, for easier debugging.
+        stop_mild_excitement(update, context)
+    else:
+        repeat = 32
+        elapsed_sec = 0
+        items = list(common.build_tuple_of_tuples('mild_ext.pv'))
+        last_item = items.pop(random.randrange(len(items)))
+        for i in range(repeat):
+            current_item = items.pop(random.randrange(len(items)))
+            direction, duration_str = current_item
+            try:
+                duration_sec = int(duration_str) * 60 * random.uniform(0.8, 1.2)
+            except ValueError:
+                print('Warning: Duration is not an integer. Check the input file.')
+                duration_sec = 350
+
+            # Send messages.
+            if i < repeat - 1:
+                # Pass multiple arguments as a tuple. (https://stackoverflow.com/a/67991802)
+                context.job_queue.run_once(send_mild_excitement, elapsed_sec,
+                                           context=(chat_id, direction), name=Constants.JOB_MILD_EXCITEMENT)
+            else:  # i = repeat - 1, i.e. the last message
+                context.job_queue.run_once(send_mild_excitement_timeout, elapsed_sec,
+                                           context=chat_id, name=Constants.JOB_MILD_EXCITEMENT)
+            elapsed_sec += duration_sec
+            items.append(last_item)
+            last_item = current_item
+
+
+def stop_mild_excitement(update: Update, context: CallbackContext):
+    message = update.effective_message
+    chat_id = message.chat_id
+
+    is_removed = remove_job_if_exists(Constants.JOB_MILD_EXCITEMENT, context)
+    if is_removed:
+        send_informative_message(chat_id, context, '터치 자세 송출을 중단합니다.', is_parenthesis=False)
+    # else:
+    #     send_informative_message(chat_id, context, '터치 자세 송출 상태가 아닙니다.')
 
 
 def set_timer(message: telegram.Message, context: CallbackContext, duration_sec: int):
@@ -550,7 +616,7 @@ def send_informative_message(chat_id, context: CallbackContext, text: str,
     print("Bot: " + text)
     template = '`({})`' if is_parenthesis else '`{}`'
     if replied_message:
-        replied_message.reply_text(text=template.format(text), parse_mode=telegram.ParseMode.MARKDOWN_V2)
+        replied_message.reply_text(text=template.format(text), parse_mode=telegram.ParseMode.MARKDOWN_V2, quote=True)
     else:
         context.bot.send_message(chat_id=chat_id, text=template.format(text), parse_mode=telegram.ParseMode.MARKDOWN_V2)
 
@@ -669,10 +735,10 @@ def activate_session(context: CallbackContext):
     global reactivated_time
     reactivated_time = datetime.datetime.now()
 
-    global rubbing_min, pause_min, repeat, cycle_number
+    global rubbing_min, pause_min, rubbing_repeat, cycle_number
     rubbing_min = 0
     pause_min = 0
-    repeat = 0
+    rubbing_repeat = 0
     cycle_number = 0
 
     # Reset the job queue.
@@ -693,27 +759,28 @@ def cheat_session(update: Update, context: CallbackContext):
 
 
 def add_command_handlers(dp: Updater.dispatcher):
+    # Add special command handlers.
     dp.add_handler(CommandHandler('start', give_orientation))
+    dp.add_handler(CommandHandler('help', command_help))
     dp.add_handler(CommandHandler('cancel', cancel_timer))
     dp.add_handler(CommandHandler('poweroverwhelming', cheat_session))
 
-    help_handler = CommandHandler('help', command_help)
-    dp.add_handler(help_handler)
-
+    # Add a message handler.
     # Note: Disable privacy mode by /setprivacy to read "normal" messages.
     # (https://stackoverflow.com/a/67163946/17198283)
     response_handler = MessageHandler(Filters.text & (~ Filters.command), interpret_message)
     dp.add_handler(response_handler)
 
+    # Add normal command handlers.
     commands = common.build_tuple_of_tuples('help.pv')
     for number, help_item in enumerate(commands):
         command, desc = help_item
         if number == 0:
-            order_1_handler = CommandHandler(command, order_1)
-            dp.add_handler(order_1_handler)
+            dp.add_handler(CommandHandler(command, order_1))
         if number == 1:
-            order_2_handler = CommandHandler(command, order_2)
-            dp.add_handler(order_2_handler)
+            dp.add_handler(CommandHandler(command, order_2))
+        if number == 2:
+            dp.add_handler(CommandHandler(command, toggle_sending_mild_excitement))
 
     # Add sf handlers.
     sup_command = common.build_tuple_of_tuples('duration_sf.pv')[1][0]
@@ -723,10 +790,6 @@ def add_command_handlers(dp: Updater.dispatcher):
     sup_command = common.build_tuple_of_tuples('duration_sf.pv')[0][0]
     duration_s_handler = CommandHandler(sup_command, duration_successful)
     dp.add_handler(duration_s_handler)
-
-
-def get_tst() -> str:
-    return datetime.datetime.now().strftime('%m%d_%H%M')
 
 
 def main():
